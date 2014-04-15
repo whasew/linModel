@@ -1,0 +1,191 @@
+```{r setup,include=FALSE}
+project<-"analysisVariance"
+mygit<-"~/Arbeitsfläche/linModel/"
+setwd(paste(mygit,project,sep="/"))
+library("ProjectTemplate")
+load.project()
+# set global chunk options
+opts_chunk$set(cache=FALSE,dev = c('png',"pdf"),echo=FALSE, message=FALSE, fig.width=11,fig.height=8,warning=FALSE,results='hide')
+
+```
+
+Varianzanalyse im linearen Modell
+========================================================
+## data given page 666 in Statisik, Sachs
+[lm intro](http://data.princeton.edu/R/linearModels.html "Princeton R intro")
+```{r dataS666high,results='markup'}
+A<-c(13.2,14.1,7.8,11.7)
+B<-c(15.9,16.2,19.3,18.0,17.3)
+C<-c(6.8,9.2,12.4)
+exp1<-data.frame(diameter=c(A,B,C),drug=c(rep("A",length(A)), rep("B",length(B)),rep("C",length(C))),Conc="high")
+sapply(exp1,class)
+head(exp1)
+```
+
+# linear model
+```{r lm,results='markup'}
+fm1<-lm(diameter~drug,exp1)
+anova(fm1)
+summary(fm1)
+summary(glht(fm1,linfct=c("drugB=0","drugC=0")))
+confint(fm1)
+K <- diag(3)
+rownames(K) <- names(coef(fm1))
+
+summary(glht(fm1,linfct=K))
+contr.treatment(3,base=1,contrasts=TRUE)
+
+model.matrix(fm1)
+```
+# multiple pairwise comparisons using glht
+
+```{r glht,results='markup'}
+amod<-aov(diameter~drug,exp1)
+summary(amod)
+amodSum<-summary(amod)
+amodGlht<-glht(amod,linfct=mcp(drug="Tukey"))
+
+
+amodSG<-summary(glht(amod,linfct=mcp(drug="Tukey")))
+plot(amodGlht)
+```
+
+
+
+```{r dataS666low,results='markup'}
+A<-c(10.4,12.6,6.3)
+B<-c(11.5,13.7,10.9,15.1)
+C<-c(12.3,14.5,16.7,10.3)
+exp2<-data.frame(diameter=c(A,B,C),drug=c(rep("A",length(A)), rep("B",length(B)),rep("C",length(C))),Conc="low")
+
+sapply(exp2,class)
+head(exp2)
+
+```
+
+```{r fm1abc}
+exp12<-rbind(exp1,exp2)
+sapply(exp12,levels)
+head(exp12)
+with(exp12,interaction.plot(drug,Conc,diameter,las=1))
+fm12<-lm(diameter~drug+Conc,exp12)
+fm12Glht<-glht(fm12,linfct=mcp(drug="Tukey"))
+plot(fm12Glht)
+fm12a<-update(fm12,.~.+drug:Conc)
+fm12b<-update(fm12a,.~.-Conc)
+fm12c<-update(fm12a,.~.-Gene)
+fm12d<-lm(diameter~Conc+Conc:drug,exp12)
+fm12e<-lm(diameter~Conc*drug,exp12)
+anova(fm12b,fm12a,fm12)
+fm<-fm12a
+```
+# compare models * and :
+```{r fma,results='markup'}
+fmGlht<-glht(fm,linfct=mcp(drug="Tukey"))
+plot(fmGlht)
+summary(fmGlht)
+anova(fm)
+summary(fm)
+```
+```{r fm12b}
+fm<-fm12b
+```
+
+```{r fmb,ref.label="fma",results='markup'}
+
+```
+
+```{r fm12c}
+fm<-fm12c
+```
+
+```{r fmc,ref.label="fma",results='markup'}
+
+```
+
+
+```{r fmGlht}
+#cbind(exp12,IPRED=fitted(fm12a))
+unique(fitted(fm12a))
+#summary(glht(fm12a,linfct=c("drugB=0","drugC=0","drug:Conc"=0)))
+K <- diag(6)
+rownames(K) <- names(coef(fm12a))
+
+summary(glht(fm12b,linfct=K[-1,]))
+summary(glht(fm12b,linfct=K[-(1:3),]))
+fitted(fm12a)
+coef(fm12a)
+summary(glht(fm12a))
+```
+
+
+```{r}
+fm<-fm12a
+unique(fitted(fm))
+co<-coef(fm)
+AH<-co[1]
+BHmAH<-co[2]
+CHmAH<-co[3]
+ALmAH<-co[4]
+BLmBHmALmAH<-co[5]
+CLmCHmALmAH<-co[6]
+
+c(AH=AH,BH=AH+BHmAH,CH=AH+CHmAH,AL=AH+ALmAH,BL=AH+BHmAH+ALmAH+BLmBHmALmAH,CL=AH+CHmAH+ALmAH+CLmCHmALmAH)
+
+fm<-fm12b
+unique(fitted(fm))
+co<-coef(fm)
+AH<-co[1]
+BHmAH<-co[2]
+CHmAH<-co[3]
+ALmAH<-co[4]
+BLmBH<-co[5]
+CLmCH<-co[6]
+
+c(AH=AH,BH=AH+BHmAH,CH=AH+CHmAH,AL=AH+ALmAH,BL=AH+BHmAH+BLmBH,CL=AH+CHmAH+CLmCH)
+```
+
+
+- AH=AH
+- BH=AH+BHmAH
+- CH=AH+CHmAH
+- AL=AH+ALmAH
+- BL=AH+BHmAH+ALmAH+BLmBHmALmAH
+- CL=AH+CHmAH+ALmAH+CLmCHmALmAH)
+
+BL-BH-(AL-AH)= BL-BH-AL+AH=(BL-AL)-(BH-AH)
+
+A=log(Ref)
+B=log(Gene)
+(BL-AL)-(BH-AH) = log(Gene/Ref)L - log(Gene/Ref)H =log((Gene/Ref)L /(Gene/Ref)H)
+
+fold increase of Gene/Ref by changing from H to L
+
+
+- AH=AH
+- BH=AH+BHmAH
+- CH=AH+CHmAH
+- AL=AH+ALmAH
+- BL=BH+BLmBH= AH+BHmAH +BLmBH = AH+BH-AH + BL-BH
+- CL=AH+CHmAH+ALmAH+CLmCHmALmAH)
+
+c0[4]=AL-AH = log(RefL/RefH)
+c0[5]=BL-BH = BL-BH + AH -AH = (BL-AH)-(BH-AH)= log((GeneL/RefH) /(Gene/Ref)H)
+c0[6]=CL-CH
+
+fold increase of Gene  by changing from H to L
+
+Gene 
+
+
+
+# Conclusion
+
+- the difference between diameter A high Conc vs  diameter A low Conc is `r ALmAH`
+- the difference between diameter B high Conc vs  diameter B low Conc is `r ALmAH+BLmBHmALmAH`  
+ - drug B adds a difference of `r BLmBHmALmAH` to the A difference `r ALmAH`
+- the difference between diameter C high Conc vs  diameter C low Conc is `r ALmAH+CLmCHmALmAH`
+ - drug C adds a difference of `r CLmCHmALmAH` to the A difference `r ALmAH`
+
+
+- Because in xALD all gene data is normalized to the reference gene HPRT or GAPDH, we want to know the fold increase of the Gene/HPRT ratio between the conc of 2,5,7 mol and 0 mol.
